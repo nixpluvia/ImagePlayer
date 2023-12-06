@@ -238,7 +238,7 @@ ImgPlayer.prototype.init = function(){
 /*-------------------------------------------------------------------
     @플레이어 설정
 -------------------------------------------------------------------*/
-ImgPlayer.prototype.setPlayerOption = function(){
+ImgPlayer.prototype.setPlayerOption = function(reset){
     var ins = this;
     this.player.total = this.el.playerItems.length;
     if (this.player.total <= 0) return false;
@@ -259,6 +259,7 @@ ImgPlayer.prototype.setPlayerOption = function(){
     this.progress.frameRange = Math.ceil(1000 / this.player.total) / 10;
 
     //이미지 리스트 초기화
+    if (reset != undefined && reset === true) ins.player.images = [];
     this.el.playerItems.forEach(function(el, idx){
         el.style.transition = 'opacity 0.1s 0s linear';
         ins.player.images.push(el.querySelector('img').getAttribute('src'));
@@ -278,11 +279,15 @@ ImgPlayer.prototype.renderTimeline = function(){
     var timeline = document.createElement('div');
     timeline.classList.add(this.class.timeline);
     fragment.appendChild(timeline);
-    //wrapper
+    this.renderTimelineItems(timeline);
+
+    this.el.player.appendChild(fragment);
+}
+
+ImgPlayer.prototype.renderTimelineItems = function(target){
+    var ins = this;
     var timelineWrap = document.createElement('div');
     timelineWrap.classList.add(this.class.timelineWrap);
-    timeline.appendChild(timelineWrap);
-    //items
     this.player.images.forEach(function(val, idx){
         var timelineItems = document.createElement('button');
         timelineItems.classList.add(ins.class.timelineItems);
@@ -292,7 +297,7 @@ ImgPlayer.prototype.renderTimeline = function(){
         timelineWrap.appendChild(timelineItems);
     });
 
-    this.el.player.appendChild(fragment);
+    target.appendChild(timelineWrap);
 }
 /*-------------------------------------------------------------------
     @타임라인 > 설정
@@ -568,7 +573,7 @@ ImgPlayer.prototype.navPlayClick = function(){
             
             //fade
             var t = Math.floor(ins.time.now / ins.time.frameTime);
-            if (ins.time.now >= ins.time.fadeStart && ins.time.now <= ins.time.fadeEnd) {
+            if (ins.time.now >= ins.time.fadeStart && ins.time.now <= ins.time.fadeEnd && ins.player.next != ins.player.total) {
                 ins.el.playerItems[ins.player.now].classList.add(ins.class.fade);
                 ins.el.playerItems[ins.player.next].classList.add(ins.class.fade);
                 //opacity calc
@@ -637,12 +642,15 @@ ImgPlayer.prototype.navStopClick = function(){
     this.el.playerItems[this.player.now].classList.remove(this.class.fade);
     this.el.playerItems[this.player.now].classList.remove(this.class.active);
     this.el.playerItems[this.player.now].style.opacity = '';
-    this.el.playerItems[this.player.next].classList.remove(this.class.fade);
+    if (this.player.next != this.player.total) this.el.playerItems[this.player.next].classList.remove(this.class.fade);
     if (this.options.useTimeline) this.el.timelineItems[this.player.now].classList.remove(this.class.active);
     this.player.now = 0;
     this.player.next = 1;
     this.el.playerItems[this.player.now].classList.add(this.class.active);
     if (this.options.useTimeline) this.el.timelineItems[this.player.now].classList.add(this.class.active);
+    //fade 초기화
+    this.time.fadeEnd = (this.time.changeTime+1) * this.time.frameTime;
+    this.time.fadeStart = this.time.fadeEnd - this.time.fade;
 }
 
 
@@ -782,6 +790,56 @@ ImgPlayer.prototype.progressUp = function(event){
 }
 
 
+/*-------------------------------------------------------------------
+    @이미지 데이터 변경
+-------------------------------------------------------------------*/
+ImgPlayer.prototype.setChangeData = function(data){
+    var ins = this;
+    //기존항목 제거
+    while (ins.el.playerBox.firstChild) {
+        ins.el.playerBox.removeChild(ins.el.playerBox.firstChild);
+    }
+
+    //이미지 리스트 재생성
+    var fragment = document.createDocumentFragment();
+    data.forEach(function(v, idx){
+        var item = document.createElement('div');
+        item.classList.add(ins.class.playerItems);
+        if (idx == 0) item.classList.add(ins.class.active);
+        var img = document.createElement('img');
+        img.setAttribute('src', v);
+
+        item.appendChild(img);
+        fragment.appendChild(item);
+    });
+    ins.el.playerBox.appendChild(fragment);
+
+    // 이미지 리스트 재설정
+    this.el.playerItems = ins.findAll(ins.el.playerBox, '.'+ins.class.playerItems);
+    ins.setPlayerOption(true);
+
+
+    if (ins.options.useTimeline) {
+        //타임라인 이벤트 초기화
+        this.el.timeline.removeEventListener('mouseleave', this.e.timelineLeave);
+        this.el.timeline.removeEventListener('mousedown', this.e.timelineDown);
+        this.el.timeline.removeEventListener('touchstart', this.e.timelineDown);
+        this.el.timeline.removeEventListener('mouseup', this.e.timelineUp);
+        this.el.timeline.removeEventListener('touchend', this.e.timelineUp);
+
+        //타임라인 재생성
+        ins.el.timeline.removeChild(ins.el.timeline.firstChild);
+        ins.renderTimelineItems(ins.el.timeline);
+
+        //set timeline
+        ins.el.timelineWrap = document.querySelector('.'+ins.class.timelineWrap);
+        ins.el.timelineItems = ins.findAll(ins.el.timelineWrap, '.'+ins.class.timelineItems);
+        ins.setTimelineOption();
+        ins.onEventTimeline();
+    }
+
+    this.navStopClick();
+}
 
 
 
